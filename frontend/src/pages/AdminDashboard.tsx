@@ -4,8 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Users, FileText, TrendingUp, CheckCircle, XCircle, AlertCircle, DollarSign, Globe, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LivePriceCard } from '@/components/LivePriceCard';
+import { UserManagement } from '@/components/UserManagement';
+import { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const AdminDashboard = () => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'users'>('overview');
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -13,7 +18,14 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-4xl font-bold mb-8 text-foreground">Admin Dashboard - NCCR</h1>
         
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'users')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="users">User Management</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="p-6 hover:shadow-ocean transition-all duration-300">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gradient-ocean rounded-lg flex items-center justify-center">
@@ -265,6 +277,12 @@ const AdminDashboard = () => {
             </div>
           </Card>
         </div>
+          </TabsContent>
+          
+          <TabsContent value="users">
+            <UserManagement />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

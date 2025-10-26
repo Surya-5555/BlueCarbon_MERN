@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5001/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -19,6 +19,20 @@ export interface AuthResponse {
       createdAt: string;
     };
     token: string;
+  };
+}
+
+export interface UserResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      createdAt: string;
+    };
   };
 }
 
@@ -74,13 +88,35 @@ class ApiClient {
     }) as Promise<AuthResponse>;
   }
 
-  async getMe() {
-    return this.request('/auth/me');
+  async getMe(): Promise<UserResponse> {
+    return this.request<UserResponse['data']>('/auth/me') as Promise<UserResponse>;
   }
 
   async logout() {
     return this.request('/auth/logout', {
       method: 'POST',
+    });
+  }
+
+  // User management endpoints
+  async getAllUsers() {
+    return this.request('/users');
+  }
+
+  async getUserById(userId: string) {
+    return this.request(`/users/${userId}`);
+  }
+
+  async updateUserRole(userId: string, role: string) {
+    return this.request(`/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async toggleUserStatus(userId: string) {
+    return this.request(`/users/${userId}/toggle-status`, {
+      method: 'PUT',
     });
   }
 }

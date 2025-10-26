@@ -87,7 +87,7 @@ export const mockProjects: Project[] = [
     description: 'Conserving critical salt marsh habitats in the Sundarbans delta.',
     longDescription: 'The Sundarbans Salt Marsh Protection project safeguards one of the world\'s most important coastal ecosystems. This project protects existing salt marshes from degradation while restoring damaged areas. Salt marshes are highly efficient carbon sinks and provide crucial storm protection for coastal communities.',
     price: 35,
-    available: 5001,
+    available: 5000,
     sold: 3000,
     image: 'https://images.unsplash.com/photo-1621451537084-482c73073a0f?w=800&h=600&fit=crop',
     verified: true,

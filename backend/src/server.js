@@ -3,8 +3,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import connectDB from './config/database.js';
 import authRoutes from './routes/auth.js';
+import userRoutes from './routes/user.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,7 +19,18 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 connectDB();
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://your-frontend-domain.com'] 
+      : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
@@ -49,6 +63,7 @@ app.post('/api/test', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -68,8 +83,28 @@ app.use((err, req, res, next) => {
   });
 });
 
+// WebSocket connection handling
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  // Join user to their personal room for role updates
+  socket.on('join-user-room', (userId) => {
+    socket.join(`user-${userId}`);
+    console.log(`User ${userId} joined their room`);
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+// Make io available globally for role updates
+global.io = io;
+
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`WebSocket server initialized`);
 });

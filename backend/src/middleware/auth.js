@@ -45,7 +45,11 @@ export const authenticateToken = async (req, res, next) => {
   }
 };
 
-export const requireRole = (roles) => {
+// Alias for backward compatibility
+export const protect = authenticateToken;
+
+// Role-based authorization middleware
+export const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ 
