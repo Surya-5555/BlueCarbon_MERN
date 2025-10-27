@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5002/api';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -117,6 +117,53 @@ class ApiClient {
   async toggleUserStatus(userId: string) {
     return this.request(`/users/${userId}/toggle-status`, {
       method: 'PUT',
+    });
+  }
+
+  // Field Data endpoints
+  async createFieldData(data: any) {
+    return this.request('/field-data', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async saveFieldDataDraft(data: any) {
+    return this.request('/field-data/draft', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMyFieldData() {
+    return this.request('/field-data/my-data');
+  }
+
+  async getFieldDataById(id: string) {
+    return this.request(`/field-data/${id}`);
+  }
+
+  async updateFieldData(id: string, data: any) {
+    return this.request(`/field-data/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteFieldData(id: string) {
+    return this.request(`/field-data/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAllFieldData() {
+    return this.request('/field-data');
+  }
+
+  async verifyFieldData(id: string, status: string, notes?: string) {
+    return this.request(`/field-data/${id}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, verificationNotes: notes }),
     });
   }
 }

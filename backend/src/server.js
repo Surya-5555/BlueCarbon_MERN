@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import connectDB from './config/database.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
+import fieldDataRoutes from './routes/fieldData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,7 +31,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 
 // Middleware
 app.use(cors({
@@ -64,6 +65,7 @@ app.post('/api/test', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/field-data', fieldDataRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const token = localStorage.getItem('bluecarbon_token');
     if (token) {
-      const newSocket = io('http://localhost:5000', {
+      const newSocket = io('http://localhost:5002', {
         auth: {
           token: token
         }

@@ -37,7 +37,7 @@ export const useLivePricing = () => {
           lastUpdated: new Date(),
         };
       });
-    }, 5000);
+    }, 5002);
 
     return () => clearInterval(interval);
   }, []);
