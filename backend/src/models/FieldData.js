@@ -5,19 +5,44 @@ const fieldDataSchema = new mongoose.Schema({
   plotId: {
     type: String,
     required: [true, 'Plot ID is required'],
+    // Allow missing while status is 'draft'
+    validate: {
+      validator: function(v) {
+        return this.status === 'draft' ? true : typeof v === 'string' && v.trim().length > 0;
+      },
+      message: 'Plot ID is required'
+    },
     trim: true
   },
   collectionDate: {
     type: Date,
-    required: [true, 'Collection date is required']
+    // Allow missing while status is 'draft'
+    validate: {
+      validator: function(v) {
+        return this.status === 'draft' ? true : v instanceof Date || typeof v === 'string';
+      },
+      message: 'Collection date is required'
+    }
   },
   gpsLatitude: {
     type: Number,
-    required: [true, 'GPS Latitude is required']
+    // Allow missing while status is 'draft'
+    validate: {
+      validator: function(v) {
+        return this.status === 'draft' ? true : typeof v === 'number';
+      },
+      message: 'GPS Latitude is required'
+    }
   },
   gpsLongitude: {
     type: Number,
-    required: [true, 'GPS Longitude is required']
+    // Allow missing while status is 'draft'
+    validate: {
+      validator: function(v) {
+        return this.status === 'draft' ? true : typeof v === 'number';
+      },
+      message: 'GPS Longitude is required'
+    }
   },
   plotNotes: {
     type: String,

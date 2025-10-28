@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,10 +24,13 @@ const FieldDataCollectionForm = () => {
   const [currentTab, setCurrentTab] = useState('basic');
   const [showToast, setShowToast] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   
   // Store form data in state to persist across tab switches
   const [formData, setFormData] = useState<any>({});
   const [filePreviews, setFilePreviews] = useState<Record<string, string[]>>({});
+  const LOCAL_STORAGE_KEY = useMemo(() => 'field_data_draft_v1', []);
+  const autoSaveTimer = useRef<number | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -72,6 +75,74 @@ const FieldDataCollectionForm = () => {
     setFilePreviews((prev) => ({ ...prev, [name]: [] }));
   };
 
+  // Derived: determine if all required fields are filled to enable final submit
+  const isFormComplete = useMemo(() => {
+    const basicOk = !!(formData.plotId && formData.collectionDate && formData.gpsLat && formData.gpsLong);
+    const vegetationOk = !!(formData.species && formData.dbh && formData.treeHeight && formData.plotDensity);
+    const soilOk = !!(formData.sampleDepth && formData.bulkDensity && formData.organicMatter && formData.soc);
+    const hydrologyOk = !!(formData.waterTableDepth && formData.salinity);
+    const photosOk = ['photoNorth','photoSouth','photoEast','photoWest'].every((k) => Array.isArray(formData[k]) && formData[k].length > 0);
+    return basicOk && vegetationOk && soilOk && hydrologyOk && photosOk;
+  }, [formData]);
+
+  const handleDiscardLocalDraft = () => {
+    try { localStorage.removeItem(LOCAL_STORAGE_KEY); } catch {}
+    // Reset in-memory state only; file inputs naturally reset on refresh
+    setFormData({});
+    setFilePreviews({});
+    setCurrentTab('basic');
+    toast.success('Local draft discarded');
+  };
+
+  // Restore from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.formData) {
+          setFormData(parsed.formData);
+        }
+        if (parsed?.currentTab) {
+          setCurrentTab(parsed.currentTab);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to restore local draft:', err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save to localStorage (debounced)
+  useEffect(() => {
+    // Skip saving only when nothing present
+    const payload = {
+      formData,
+      currentTab,
+      savedAt: new Date().toISOString(),
+    };
+    if (autoSaveTimer.current) window.clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = window.setTimeout(() => {
+      try {
+        // Exclude File objects (cannot be serialized) by replacing with filenames
+        const sanitized: any = { ...payload, formData: { ...formData } };
+        Object.keys(sanitized.formData).forEach((k) => {
+          const v = sanitized.formData[k];
+          if (Array.isArray(v) && v.length && v[0] instanceof File) {
+            sanitized.formData[k] = v.map((f: File) => ({ name: f.name, size: f.size, type: f.type }));
+          }
+        });
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitized));
+      } catch (err) {
+        console.error('Failed to auto-save draft locally:', err);
+      }
+    }, 800);
+
+    return () => {
+      if (autoSaveTimer.current) window.clearTimeout(autoSaveTimer.current);
+    };
+  }, [formData, currentTab, LOCAL_STORAGE_KEY]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -81,55 +152,88 @@ const FieldDataCollectionForm = () => {
       setCurrentTab('basic');
       return;
     }
+    // Validate across other tabs before allowing final submit
+    if (!formData.species || !formData.dbh || !formData.treeHeight || !formData.plotDensity) {
+      toast.error('Please fill in required fields in Vegetation section');
+      setCurrentTab('vegetation');
+      return;
+    }
+    if (!formData.sampleDepth || !formData.bulkDensity || !formData.organicMatter || !formData.soc) {
+      toast.error('Please fill in required fields in Soil section');
+      setCurrentTab('soil');
+      return;
+    }
+    if (!formData.waterTableDepth || !formData.salinity) {
+      toast.error('Please fill in required fields in Hydrology section');
+      setCurrentTab('hydrology');
+      return;
+    }
+    if (!(['photoNorth','photoSouth','photoEast','photoWest'].every((k) => Array.isArray(formData[k]) && formData[k].length > 0))) {
+      toast.error('Please upload required cardinal direction photos in Photos section');
+      setCurrentTab('photos');
+      return;
+    }
 
     setLoading(true);
+    setSubmitStatus('submitting');
     
     try {
-      // Extract form data
-      const fieldData: any = {
-        // Basic Info
-        plotId: formData.plotId,
-        collectionDate: formData.collectionDate,
-        gpsLatitude: formData.gpsLat ? parseFloat(formData.gpsLat) : undefined,
-        gpsLongitude: formData.gpsLong ? parseFloat(formData.gpsLong) : undefined,
-        plotNotes: formData.plotNotes,
-        
-        // Vegetation
-        species: formData.species,
-        dbh: formData.dbh ? parseFloat(formData.dbh) : undefined,
-        treeHeight: formData.treeHeight ? parseFloat(formData.treeHeight) : undefined,
-        plotDensity: formData.plotDensity ? parseFloat(formData.plotDensity) : undefined,
-        canopyCover: formData.canopyCover ? parseFloat(formData.canopyCover) : undefined,
-        survivalRate: formData.survivalRate ? parseFloat(formData.survivalRate) : undefined,
-        
-        // Soil Data
-        sampleDepth: formData.sampleDepth ? parseFloat(formData.sampleDepth) : undefined,
-        bulkDensity: formData.bulkDensity ? parseFloat(formData.bulkDensity) : undefined,
-        organicMatter: formData.organicMatter ? parseFloat(formData.organicMatter) : undefined,
-        soilOrganicCarbon: formData.soc ? parseFloat(formData.soc) : undefined,
-        soilPh: formData.soilPh ? parseFloat(formData.soilPh) : undefined,
-        soilTexture: formData.soilTexture,
-        soilMoisture: formData.soilMoisture ? parseFloat(formData.soilMoisture) : undefined,
-        
-        // Hydrology
-        waterTableDepth: formData.waterTableDepth ? parseFloat(formData.waterTableDepth) : undefined,
-        salinity: formData.salinity ? parseFloat(formData.salinity) : undefined,
-        waterPh: formData.waterPh ? parseFloat(formData.waterPh) : undefined,
-        waterTemperature: formData.waterTemp ? parseFloat(formData.waterTemp) : undefined,
-        dissolvedOxygen: formData.dissolvedOxygen ? parseFloat(formData.dissolvedOxygen) : undefined,
-        tidalRange: formData.tidalRange ? parseFloat(formData.tidalRange) : undefined,
-        managementEvent: formData.managementEvent,
-      };
+      // Always submit as multipart (handles with/without files consistently)
+      const fd = new FormData();
+      // Basic
+      fd.append('plotId', formData.plotId || '');
+      fd.append('collectionDate', formData.collectionDate || '');
+      if (formData.gpsLat) fd.append('gpsLatitude', String(formData.gpsLat));
+      if (formData.gpsLong) fd.append('gpsLongitude', String(formData.gpsLong));
+      if (formData.plotNotes) fd.append('plotNotes', formData.plotNotes);
+      // Vegetation
+      if (formData.species) fd.append('species', formData.species);
+      ['dbh','treeHeight','plotDensity','canopyCover','survivalRate'].forEach((k) => {
+        if (formData[k]) fd.append(k, String(formData[k]));
+      });
+      // Soil
+      if (formData.sampleDepth) fd.append('sampleDepth', String(formData.sampleDepth));
+      if (formData.bulkDensity) fd.append('bulkDensity', String(formData.bulkDensity));
+      if (formData.organicMatter) fd.append('organicMatter', String(formData.organicMatter));
+      if (formData.soc) fd.append('soilOrganicCarbon', String(formData.soc));
+      if (formData.soilPh) fd.append('soilPh', String(formData.soilPh));
+      if (formData.soilTexture) fd.append('soilTexture', formData.soilTexture);
+      if (formData.soilMoisture) fd.append('soilMoisture', String(formData.soilMoisture));
+      // Hydrology
+      ['waterTableDepth','salinity','waterPh','waterTemp','dissolvedOxygen','tidalRange'].forEach((k) => {
+        if (formData[k]) {
+          const mapped = k === 'waterTemp' ? 'waterTemperature' : k;
+          fd.append(mapped, String(formData[k]));
+        }
+      });
+      if (formData.managementEvent) fd.append('managementEvent', formData.managementEvent);
+      if (formData.photoNotes) fd.append('photoNotes', formData.photoNotes);
 
-      await apiClient.createFieldData(fieldData);
+      // Files (append if present)
+      if (Array.isArray(formData.photoNorth)) formData.photoNorth.forEach((f: File) => f instanceof File && fd.append('photoNorth', f));
+      if (Array.isArray(formData.photoSouth)) formData.photoSouth.forEach((f: File) => f instanceof File && fd.append('photoSouth', f));
+      if (Array.isArray(formData.photoEast)) formData.photoEast.forEach((f: File) => f instanceof File && fd.append('photoEast', f));
+      if (Array.isArray(formData.photoWest)) formData.photoWest.forEach((f: File) => f instanceof File && fd.append('photoWest', f));
+      if (Array.isArray(formData.photoAdditional)) formData.photoAdditional.forEach((f: File) => f instanceof File && fd.append('photoAdditional', f));
+      if (Array.isArray(formData.soilLabResults) && formData.soilLabResults[0] instanceof File) {
+        fd.append('soilLabResults', formData.soilLabResults[0]);
+      }
+
+      await apiClient.submitFieldDataWithPhotos(fd);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
       toast.success('Field data saved successfully!');
+      setSubmitStatus('success');
+      setTimeout(() => setSubmitStatus('idle'), 2000);
       
       // Keep form data after successful submission
+      // Clear local draft on successful submit
+      try { localStorage.removeItem(LOCAL_STORAGE_KEY); } catch {}
     } catch (error) {
       console.error('Failed to submit field data:', error);
       toast.error('Failed to save field data. Please try again.');
+      setSubmitStatus('error');
+      setTimeout(() => setSubmitStatus('idle'), 2000);
     } finally {
       setLoading(false);
     }
@@ -139,14 +243,90 @@ const FieldDataCollectionForm = () => {
     setLoading(true);
     
     try {
-      const fieldData: any = {
-        plotId: formData.plotId || 'Draft',
-        plotNotes: formData.plotNotes,
-        collectionDate: formData.collectionDate || new Date().toISOString().split('T')[0],
-      };
+      const draftHasPhotos = ['photoNorth','photoSouth','photoEast','photoWest','photoAdditional','soilLabResults']
+        .some((k) => Array.isArray(formData[k]) && formData[k].length > 0 && formData[k][0] instanceof File);
 
-      await apiClient.saveFieldDataDraft(fieldData);
+      if (draftHasPhotos) {
+        const fd = new FormData();
+        // Basic
+        if (formData.plotId) fd.append('plotId', formData.plotId);
+        if (formData.collectionDate) fd.append('collectionDate', formData.collectionDate);
+        if (formData.gpsLat) fd.append('gpsLatitude', String(formData.gpsLat));
+        if (formData.gpsLong) fd.append('gpsLongitude', String(formData.gpsLong));
+        if (formData.plotNotes) fd.append('plotNotes', formData.plotNotes);
+        // Vegetation (optional)
+        if (formData.species) fd.append('species', formData.species);
+        ;['dbh','treeHeight','plotDensity','canopyCover','survivalRate'].forEach((k) => {
+          if (formData[k]) fd.append(k, String(formData[k]));
+        });
+        // Soil
+        if (formData.sampleDepth) fd.append('sampleDepth', String(formData.sampleDepth));
+        if (formData.bulkDensity) fd.append('bulkDensity', String(formData.bulkDensity));
+        if (formData.organicMatter) fd.append('organicMatter', String(formData.organicMatter));
+        if (formData.soc) fd.append('soilOrganicCarbon', String(formData.soc));
+        if (formData.soilPh) fd.append('soilPh', String(formData.soilPh));
+        if (formData.soilTexture) fd.append('soilTexture', formData.soilTexture);
+        if (formData.soilMoisture) fd.append('soilMoisture', String(formData.soilMoisture));
+        // Hydrology
+        ;['waterTableDepth','salinity','waterPh','waterTemp','dissolvedOxygen','tidalRange'].forEach((k) => {
+          if (formData[k]) {
+            const mapped = k === 'waterTemp' ? 'waterTemperature' : k;
+            fd.append(mapped, String(formData[k]));
+          }
+        });
+        if (formData.managementEvent) fd.append('managementEvent', formData.managementEvent);
+        if (formData.photoNotes) fd.append('photoNotes', formData.photoNotes);
+
+        // Files
+        if (Array.isArray(formData.photoNorth)) formData.photoNorth.forEach((f: File) => fd.append('photoNorth', f));
+        if (Array.isArray(formData.photoSouth)) formData.photoSouth.forEach((f: File) => fd.append('photoSouth', f));
+        if (Array.isArray(formData.photoEast)) formData.photoEast.forEach((f: File) => fd.append('photoEast', f));
+        if (Array.isArray(formData.photoWest)) formData.photoWest.forEach((f: File) => fd.append('photoWest', f));
+        if (Array.isArray(formData.photoAdditional)) formData.photoAdditional.forEach((f: File) => fd.append('photoAdditional', f));
+        if (Array.isArray(formData.soilLabResults) && formData.soilLabResults[0]) {
+          fd.append('soilLabResults', formData.soilLabResults[0]);
+        }
+
+        await apiClient.saveFieldDataDraftWithPhotos(fd);
+      } else {
+        // JSON-only draft
+        const fieldData: any = {
+          plotId: formData.plotId,
+          collectionDate: formData.collectionDate,
+          gpsLatitude: formData.gpsLat ? parseFloat(formData.gpsLat) : undefined,
+          gpsLongitude: formData.gpsLong ? parseFloat(formData.gpsLong) : undefined,
+          plotNotes: formData.plotNotes,
+          species: formData.species,
+          dbh: formData.dbh ? parseFloat(formData.dbh) : undefined,
+          treeHeight: formData.treeHeight ? parseFloat(formData.treeHeight) : undefined,
+          plotDensity: formData.plotDensity ? parseFloat(formData.plotDensity) : undefined,
+          canopyCover: formData.canopyCover ? parseFloat(formData.canopyCover) : undefined,
+          survivalRate: formData.survivalRate ? parseFloat(formData.survivalRate) : undefined,
+          sampleDepth: formData.sampleDepth ? parseFloat(formData.sampleDepth) : undefined,
+          bulkDensity: formData.bulkDensity ? parseFloat(formData.bulkDensity) : undefined,
+          organicMatter: formData.organicMatter ? parseFloat(formData.organicMatter) : undefined,
+          soilOrganicCarbon: formData.soc ? parseFloat(formData.soc) : undefined,
+          soilPh: formData.soilPh ? parseFloat(formData.soilPh) : undefined,
+          soilTexture: formData.soilTexture,
+          soilMoisture: formData.soilMoisture ? parseFloat(formData.soilMoisture) : undefined,
+          waterTableDepth: formData.waterTableDepth ? parseFloat(formData.waterTableDepth) : undefined,
+          salinity: formData.salinity ? parseFloat(formData.salinity) : undefined,
+          waterPh: formData.waterPh ? parseFloat(formData.waterPh) : undefined,
+          waterTemperature: formData.waterTemp ? parseFloat(formData.waterTemp) : undefined,
+          dissolvedOxygen: formData.dissolvedOxygen ? parseFloat(formData.dissolvedOxygen) : undefined,
+          tidalRange: formData.tidalRange ? parseFloat(formData.tidalRange) : undefined,
+          managementEvent: formData.managementEvent,
+          photoNotes: formData.photoNotes,
+        };
+        Object.keys(fieldData).forEach((k) => fieldData[k] === undefined && delete fieldData[k]);
+        await apiClient.saveFieldDataDraft(fieldData);
+      }
       toast.success('Draft saved successfully!');
+      // Persist current draft locally as well for offline support
+      try {
+        const snapshot = { formData, currentTab, savedAt: new Date().toISOString() };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(snapshot));
+      } catch {}
     } catch (error) {
       console.error('Failed to save draft:', error);
       toast.error('Failed to save draft');
@@ -160,9 +340,13 @@ const FieldDataCollectionForm = () => {
       <Navbar />
       
       <div className="container mx-auto px-4 py-8 max-w-5xl">
+        <form onSubmit={handleSubmit}>
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 text-foreground">Field Data Collection</h1>
           <p className="text-muted-foreground">Record measurements and observations from the field</p>
+          <div className="mt-4 flex gap-3">
+            <Button type="button" variant="outline" onClick={handleDiscardLocalDraft}>Discard local draft</Button>
+          </div>
         </div>
 
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
@@ -343,7 +527,22 @@ const FieldDataCollectionForm = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="soilLabResults">Lab Results Upload</Label>
-                  <Input id="soilLabResults" name="soilLabResults" type="file" accept=".pdf,.xlsx,.csv" />
+                  <Input id="soilLabResults" name="soilLabResults" type="file" accept=".pdf,.xlsx,.csv" onChange={(e) => handleFileChange('soilLabResults', e.target.files)} />
+                  {Array.isArray(formData.soilLabResults) && formData.soilLabResults.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-3 items-start">
+                        <div className="flex flex-col items-start gap-1">
+                          <img
+                            src={filePreviews.soilLabResults?.[0] || '/placeholder.svg'}
+                            alt="Lab result preview"
+                            className="h-24 w-24 object-cover rounded border"
+                          />
+                          <a href={filePreviews.soilLabResults?.[0]} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open</a>
+                          <span className="text-xs text-muted-foreground truncate max-w-[12rem]">{formData.soilLabResults[0]?.name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">Upload detailed lab analysis results</p>
                 </div>
               </div>
@@ -444,7 +643,6 @@ const FieldDataCollectionForm = () => {
                             </div>
                           ))}
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoNorth')}>Clear</Button>
                       </div>
                     )}
                   </div>
@@ -463,7 +661,6 @@ const FieldDataCollectionForm = () => {
                             </div>
                           ))}
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoSouth')}>Clear</Button>
                       </div>
                     )}
                   </div>
@@ -484,7 +681,6 @@ const FieldDataCollectionForm = () => {
                             </div>
                           ))}
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoEast')}>Clear</Button>
                       </div>
                     )}
                   </div>
@@ -503,7 +699,6 @@ const FieldDataCollectionForm = () => {
                             </div>
                           ))}
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoWest')}>Clear</Button>
                       </div>
                     )}
                   </div>
@@ -523,7 +718,6 @@ const FieldDataCollectionForm = () => {
                           </div>
                         ))}
                       </div>
-                      <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoAdditional')}>Clear</Button>
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
@@ -542,10 +736,14 @@ const FieldDataCollectionForm = () => {
 
         <div className="flex justify-end gap-4 mt-6">
           <Button type="button" variant="outline" onClick={handleSaveDraft} disabled={loading}>
-            {loading ? 'Saving...' : 'Save Draft'}
+            {loading && submitStatus !== 'submitting' ? 'Saving...' : 'Save Draft'}
           </Button>
-          <Button type="submit" className="bg-gradient-ocean" disabled={loading}>
-            {loading ? 'Submitting...' : 'Submit Field Data'}
+          <Button
+            type="submit"
+            className="bg-gradient-ocean"
+            disabled={loading || submitStatus === 'submitting' || !isFormComplete}
+          >
+            {submitStatus === 'submitting' ? 'Submitting...' : submitStatus === 'success' ? 'Done' : submitStatus === 'error' ? 'Failed' : 'Submit Field Data'}
           </Button>
         </div>
 
@@ -554,6 +752,7 @@ const FieldDataCollectionForm = () => {
             Field data saved successfully!
           </div>
         )}
+        </form>
       </div>
     </div>
   );

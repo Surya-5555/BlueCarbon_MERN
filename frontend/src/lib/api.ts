@@ -128,11 +128,44 @@ class ApiClient {
     });
   }
 
+  async submitFieldDataWithPhotos(formData: FormData) {
+    const token = localStorage.getItem('bluecarbon_token');
+    const response = await fetch(`${this.baseURL}/field-data/submit`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // NOTE: do not set Content-Type for FormData; browser sets boundary
+      } as any,
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+    }
+    return data;
+  }
+
   async saveFieldDataDraft(data: any) {
     return this.request('/field-data/draft', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async saveFieldDataDraftWithPhotos(formData: FormData) {
+    const token = localStorage.getItem('bluecarbon_token');
+    const response = await fetch(`${this.baseURL}/field-data/draft`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      } as any,
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+    }
+    return data;
   }
 
   async getMyFieldData() {
