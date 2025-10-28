@@ -27,6 +27,7 @@ const FieldDataCollectionForm = () => {
   
   // Store form data in state to persist across tab switches
   const [formData, setFormData] = useState<any>({});
+  const [filePreviews, setFilePreviews] = useState<Record<string, string[]>>({});
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -41,6 +42,34 @@ const FieldDataCollectionForm = () => {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleFileChange = (name: string, files: FileList | null) => {
+    // Revoke old URLs for this field
+    if (filePreviews[name]) {
+      filePreviews[name].forEach((url) => URL.revokeObjectURL(url));
+    }
+
+    const fileArray = files ? Array.from(files) : [];
+    const urls = fileArray.map((f) => URL.createObjectURL(f));
+
+    setFormData((prev: any) => ({
+      ...prev,
+      [name]: fileArray,
+    }));
+
+    setFilePreviews((prev) => ({
+      ...prev,
+      [name]: urls,
+    }));
+  };
+
+  const handleClearFiles = (name: string) => {
+    if (filePreviews[name]) {
+      filePreviews[name].forEach((url) => URL.revokeObjectURL(url));
+    }
+    setFormData((prev: any) => ({ ...prev, [name]: [] }));
+    setFilePreviews((prev) => ({ ...prev, [name]: [] }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -97,8 +126,7 @@ const FieldDataCollectionForm = () => {
       setTimeout(() => setShowToast(false), 3000);
       toast.success('Field data saved successfully!');
       
-      // Clear form after successful submission
-      setFormData({});
+      // Keep form data after successful submission
     } catch (error) {
       console.error('Failed to submit field data:', error);
       toast.error('Failed to save field data. Please try again.');
@@ -265,31 +293,31 @@ const FieldDataCollectionForm = () => {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="sampleDepth">Sample Depth (cm) *</Label>
-                    <Input id="sampleDepth" name="sampleDepth" type="number" step="0.1" placeholder="e.g., 30" required />
+                    <Input id="sampleDepth" name="sampleDepth" type="number" step="0.1" value={formData.sampleDepth || ''} onChange={handleInputChange} placeholder="e.g., 30" required />
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="bulkDensity">Bulk Density (g/cm³) *</Label>
-                    <Input id="bulkDensity" name="bulkDensity" type="number" step="0.01" placeholder="e.g., 1.35" required />
+                    <Input id="bulkDensity" name="bulkDensity" type="number" step="0.01" value={formData.bulkDensity || ''} onChange={handleInputChange} placeholder="e.g., 1.35" required />
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="organicMatter">Organic Matter (%) *</Label>
-                    <Input id="organicMatter" name="organicMatter" type="number" step="0.1" placeholder="e.g., 4.5" required />
+                    <Input id="organicMatter" name="organicMatter" type="number" step="0.1" value={formData.organicMatter || ''} onChange={handleInputChange} placeholder="e.g., 4.5" required />
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="soc">Soil Organic Carbon - SOC (%) *</Label>
-                    <Input id="soc" name="soc" type="number" step="0.1" placeholder="e.g., 2.8" required />
+                    <Input id="soc" name="soc" type="number" step="0.1" value={formData.soc || ''} onChange={handleInputChange} placeholder="e.g., 2.8" required />
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="soilPh">Soil pH</Label>
-                    <Input id="soilPh" name="soilPh" type="number" step="0.1" min="0" max="14" placeholder="e.g., 7.2" />
+                    <Input id="soilPh" name="soilPh" type="number" step="0.1" min="0" max="14" value={formData.soilPh || ''} onChange={handleInputChange} placeholder="e.g., 7.2" />
                   </div>
 
                   <div className="space-y-2">
@@ -309,7 +337,7 @@ const FieldDataCollectionForm = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="soilMoisture">Soil Moisture (%)</Label>
-                    <Input id="soilMoisture" name="soilMoisture" type="number" step="0.1" placeholder="e.g., 32" />
+                    <Input id="soilMoisture" name="soilMoisture" type="number" step="0.1" value={formData.soilMoisture || ''} onChange={handleInputChange} placeholder="e.g., 32" />
                   </div>
                 </div>
 
@@ -333,35 +361,35 @@ const FieldDataCollectionForm = () => {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="waterTableDepth">Water Table Depth (cm) *</Label>
-                    <Input id="waterTableDepth" name="waterTableDepth" type="number" step="0.1" placeholder="e.g., 15.5" required />
+                    <Input id="waterTableDepth" name="waterTableDepth" type="number" step="0.1" value={formData.waterTableDepth || ''} onChange={handleInputChange} placeholder="e.g., 15.5" required />
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="salinity">Salinity (ppt) *</Label>
-                    <Input id="salinity" name="salinity" type="number" step="0.1" placeholder="e.g., 28.3" required />
+                    <Input id="salinity" name="salinity" type="number" step="0.1" value={formData.salinity || ''} onChange={handleInputChange} placeholder="e.g., 28.3" required />
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="waterPh">Water pH</Label>
-                    <Input id="waterPh" name="waterPh" type="number" step="0.1" min="0" max="14" placeholder="e.g., 8.1" />
+                    <Input id="waterPh" name="waterPh" type="number" step="0.1" min="0" max="14" value={formData.waterPh || ''} onChange={handleInputChange} placeholder="e.g., 8.1" />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="waterTemp">Water Temperature (°C)</Label>
-                    <Input id="waterTemp" name="waterTemp" type="number" step="0.1" placeholder="e.g., 24.5" />
+                    <Input id="waterTemp" name="waterTemp" type="number" step="0.1" value={formData.waterTemp || ''} onChange={handleInputChange} placeholder="e.g., 24.5" />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="dissolvedOxygen">Dissolved Oxygen (mg/L)</Label>
-                    <Input id="dissolvedOxygen" name="dissolvedOxygen" type="number" step="0.1" placeholder="e.g., 6.8" />
+                    <Input id="dissolvedOxygen" name="dissolvedOxygen" type="number" step="0.1" value={formData.dissolvedOxygen || ''} onChange={handleInputChange} placeholder="e.g., 6.8" />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="tidalRange">Tidal Range (m)</Label>
-                  <Input id="tidalRange" name="tidalRange" type="number" step="0.1" placeholder="e.g., 1.8" />
+                  <Input id="tidalRange" name="tidalRange" type="number" step="0.1" value={formData.tidalRange || ''} onChange={handleInputChange} placeholder="e.g., 1.8" />
                 </div>
 
                 <div className="space-y-2">
@@ -404,30 +432,100 @@ const FieldDataCollectionForm = () => {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="photoNorth">North Direction Photo *</Label>
-                    <Input id="photoNorth" type="file" accept="image/*" capture="environment" required />
+                    <Input id="photoNorth" type="file" accept="image/*" capture="environment" onChange={(e) => handleFileChange('photoNorth', e.target.files)} required />
+                    {Array.isArray(formData.photoNorth) && formData.photoNorth.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-3 items-start">
+                          {filePreviews.photoNorth?.map((url, idx) => (
+                            <div key={idx} className="flex flex-col items-start gap-1">
+                              <img src={url} alt={`North preview ${idx+1}`} className="h-24 w-24 object-cover rounded border" />
+                              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open</a>
+                              <span className="text-xs text-muted-foreground truncate max-w-[8rem]">{formData.photoNorth[idx]?.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoNorth')}>Clear</Button>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="photoSouth">South Direction Photo *</Label>
-                    <Input id="photoSouth" type="file" accept="image/*" capture="environment" required />
+                    <Input id="photoSouth" type="file" accept="image/*" capture="environment" onChange={(e) => handleFileChange('photoSouth', e.target.files)} required />
+                    {Array.isArray(formData.photoSouth) && formData.photoSouth.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-3 items-start">
+                          {filePreviews.photoSouth?.map((url, idx) => (
+                            <div key={idx} className="flex flex-col items-start gap-1">
+                              <img src={url} alt={`South preview ${idx+1}`} className="h-24 w-24 object-cover rounded border" />
+                              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open</a>
+                              <span className="text-xs text-muted-foreground truncate max-w-[8rem]">{formData.photoSouth[idx]?.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoSouth')}>Clear</Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="photoEast">East Direction Photo *</Label>
-                    <Input id="photoEast" type="file" accept="image/*" capture="environment" required />
+                    <Input id="photoEast" type="file" accept="image/*" capture="environment" onChange={(e) => handleFileChange('photoEast', e.target.files)} required />
+                    {Array.isArray(formData.photoEast) && formData.photoEast.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-3 items-start">
+                          {filePreviews.photoEast?.map((url, idx) => (
+                            <div key={idx} className="flex flex-col items-start gap-1">
+                              <img src={url} alt={`East preview ${idx+1}`} className="h-24 w-24 object-cover rounded border" />
+                              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open</a>
+                              <span className="text-xs text-muted-foreground truncate max-w-[8rem]">{formData.photoEast[idx]?.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoEast')}>Clear</Button>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="photoWest">West Direction Photo *</Label>
-                    <Input id="photoWest" type="file" accept="image/*" capture="environment" required />
+                    <Input id="photoWest" type="file" accept="image/*" capture="environment" onChange={(e) => handleFileChange('photoWest', e.target.files)} required />
+                    {Array.isArray(formData.photoWest) && formData.photoWest.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-3 items-start">
+                          {filePreviews.photoWest?.map((url, idx) => (
+                            <div key={idx} className="flex flex-col items-start gap-1">
+                              <img src={url} alt={`West preview ${idx+1}`} className="h-24 w-24 object-cover rounded border" />
+                              <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open</a>
+                              <span className="text-xs text-muted-foreground truncate max-w-[8rem]">{formData.photoWest[idx]?.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoWest')}>Clear</Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="photoAdditional">Additional Plot Photos</Label>
-                  <Input id="photoAdditional" type="file" accept="image/*" multiple capture="environment" />
+                  <Input id="photoAdditional" type="file" accept="image/*" multiple capture="environment" onChange={(e) => handleFileChange('photoAdditional', e.target.files)} />
+                  {Array.isArray(formData.photoAdditional) && formData.photoAdditional.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-3 items-start">
+                        {filePreviews.photoAdditional?.map((url, idx) => (
+                          <div key={idx} className="flex flex-col items-start gap-1">
+                            <img src={url} alt={`Additional preview ${idx+1}`} className="h-24 w-24 object-cover rounded border" />
+                            <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Open</a>
+                            <span className="text-xs text-muted-foreground truncate max-w-[8rem]">{formData.photoAdditional[idx]?.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={() => handleClearFiles('photoAdditional')}>Clear</Button>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Upload any additional photos documenting plot conditions, species, or notable features
                   </p>
@@ -435,7 +533,7 @@ const FieldDataCollectionForm = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="photoNotes">Photo Notes / Caption</Label>
-                  <Textarea id="photoNotes" placeholder="Describe what is captured in the photos..." rows={3} />
+                  <Textarea id="photoNotes" name="photoNotes" value={formData.photoNotes || ''} onChange={handleInputChange} placeholder="Describe what is captured in the photos..." rows={3} />
                 </div>
               </div>
             </Card>
